@@ -1,13 +1,116 @@
-[gd_scene format=3 uid="uid://q88c46r2qjer"]
+[gd_scene format=3 uid="uid://dqvfy18850e85"]
 
+[ext_resource type="Script" uid="uid://cjkpy0cbbforu" path="res://save_image.gd" id="1_66l80"]
 [ext_resource type="Script" uid="uid://7btrssxj5kpt" path="res://texture_rect.gd" id="1_gvoqh"]
 
-[node name="Node2D" type="Node2D" unique_id=927373228]
+[sub_resource type="StyleBoxFlat" id="StyleBoxFlat_gvoqh"]
+bg_color = Color(1, 1, 1, 1)
 
-[node name="TextureRect" type="TextureRect" parent="." unique_id=1329337259]
+[sub_resource type="Theme" id="Theme_gvoqh"]
+
+[node name="DrawWindow" type="Node2D" unique_id=1559079329]
+script = ExtResource("1_66l80")
+
+[node name="MarginContainer" type="MarginContainer" parent="." unique_id=66521918]
+offset_right = 40.0
+offset_bottom = 40.0
+theme_override_constants/margin_left = 4
+theme_override_constants/margin_top = 4
+theme_override_constants/margin_right = 4
+theme_override_constants/margin_bottom = 4
+
+[node name="VBoxContainer" type="VBoxContainer" parent="MarginContainer" unique_id=1225224756]
+layout_mode = 2
+
+[node name="ColorPickerButton" type="ColorPickerButton" parent="MarginContainer/VBoxContainer" unique_id=2058304580]
+layout_mode = 2
+text = "Pick Color"
+edit_alpha = false
+edit_intensity = false
+
+[node name="Control" type="Control" parent="MarginContainer/VBoxContainer" unique_id=2020196831]
+custom_minimum_size = Vector2(256, 256)
+layout_mode = 2
+offset_transform_enabled = true
+
+[node name="Panel" type="Panel" parent="MarginContainer/VBoxContainer/Control" unique_id=1428447858]
+layout_mode = 0
+offset_left = 5.0
+offset_right = 260.99994
+offset_bottom = 256.0
+theme_override_styles/panel = SubResource("StyleBoxFlat_gvoqh")
+
+[node name="TextureRect" type="TextureRect" parent="MarginContainer/VBoxContainer/Control" unique_id=239157774]
 texture_filter = 1
-offset_left = 841.0
-offset_top = 48.0
-offset_right = 1097.0
-offset_bottom = 304.0
+custom_minimum_size = Vector2(256, 256)
+layout_mode = 0
+offset_left = 5.0
+offset_right = 261.0
+offset_bottom = 256.0
 script = ExtResource("1_gvoqh")
+
+[node name="Button" type="Button" parent="MarginContainer/VBoxContainer" unique_id=1707114256]
+layout_mode = 2
+text = "Save"
+
+[node name="GridContainer" type="GridContainer" parent="MarginContainer/VBoxContainer" unique_id=1100579477]
+layout_mode = 2
+columns = 4
+
+[node name="TextureRect" type="TextureRect" parent="MarginContainer/VBoxContainer/GridContainer" unique_id=2049867793]
+texture_filter = 1
+custom_minimum_size = Vector2(64, 64)
+custom_maximum_size = Vector2(64, 64)
+layout_mode = 2
+theme = SubResource("Theme_gvoqh")
+
+[node name="TextureRect2" type="TextureRect" parent="MarginContainer/VBoxContainer/GridContainer" unique_id=1619756118]
+texture_filter = 1
+custom_minimum_size = Vector2(64, 64)
+custom_maximum_size = Vector2(64, 64)
+layout_mode = 2
+theme = SubResource("Theme_gvoqh")
+
+[node name="TextureRect3" type="TextureRect" parent="MarginContainer/VBoxContainer/GridContainer" unique_id=1376377961]
+texture_filter = 1
+custom_minimum_size = Vector2(64, 64)
+custom_maximum_size = Vector2(64, 64)
+layout_mode = 2
+theme = SubResource("Theme_gvoqh")
+
+[node name="TextureRect4" type="TextureRect" parent="MarginContainer/VBoxContainer/GridContainer" unique_id=1685114545]
+texture_filter = 1
+custom_minimum_size = Vector2(64, 64)
+custom_maximum_size = Vector2(64, 64)
+layout_mode = 2
+theme = SubResource("Theme_gvoqh")
+
+[node name="TextureRect5" type="TextureRect" parent="MarginContainer/VBoxContainer/GridContainer" unique_id=944138080]
+texture_filter = 1
+custom_minimum_size = Vector2(64, 64)
+custom_maximum_size = Vector2(64, 64)
+layout_mode = 2
+theme = SubResource("Theme_gvoqh")
+
+[node name="TextureRect6" type="TextureRect" parent="MarginContainer/VBoxContainer/GridContainer" unique_id=1465425312]
+texture_filter = 1
+custom_minimum_size = Vector2(64, 64)
+custom_maximum_size = Vector2(64, 64)
+layout_mode = 2
+theme = SubResource("Theme_gvoqh")
+
+[node name="TextureRect7" type="TextureRect" parent="MarginContainer/VBoxContainer/GridContainer" unique_id=1539839947]
+texture_filter = 1
+custom_minimum_size = Vector2(64, 64)
+custom_maximum_size = Vector2(64, 64)
+layout_mode = 2
+theme = SubResource("Theme_gvoqh")
+
+[node name="TextureRect8" type="TextureRect" parent="MarginContainer/VBoxContainer/GridContainer" unique_id=501980996]
+texture_filter = 1
+custom_minimum_size = Vector2(64, 64)
+custom_maximum_size = Vector2(64, 64)
+layout_mode = 2
+theme = SubResource("Theme_gvoqh")
+
+[connection signal="pressed" from="MarginContainer/VBoxContainer/Button" to="." method="_on_button_pressed"]

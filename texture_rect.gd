@@ -11,7 +11,7 @@ func _ready():
 
 func clear_image():
 	image = Image.create(image_size.x, image_size.y, false, Image.FORMAT_RGBA8)
-	image.fill(Color.WHITE)
+	image.fill(Color.TRANSPARENT)
 	
 	texture_buffer = ImageTexture.create_from_image(image)
 	self.texture = texture_buffer
@@ -29,5 +29,5 @@ func paint_at_mouse(mouse_pos: Vector2):
 	var scale_factor = Vector2(image_size) / size
 	var pixel_pos = Vector2i(mouse_pos * scale_factor)
 	
-	image.set_pixel(pixel_pos.x, pixel_pos.y, brush_color)
+	image.set_pixel(pixel_pos.x, pixel_pos.y, $"../../ColorPickerButton".color)
 	texture_buffer.update(image)
