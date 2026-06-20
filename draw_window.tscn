@@ -1,0 +1,13 @@
+[gd_scene format=3 uid="uid://q88c46r2qjer"]
+
+[ext_resource type="Script" uid="uid://7btrssxj5kpt" path="res://texture_rect.gd" id="1_gvoqh"]
+
+[node name="Node2D" type="Node2D" unique_id=927373228]
+
+[node name="TextureRect" type="TextureRect" parent="." unique_id=1329337259]
+texture_filter = 1
+offset_left = 841.0
+offset_top = 48.0
+offset_right = 1097.0
+offset_bottom = 304.0
+script = ExtResource("1_gvoqh")
