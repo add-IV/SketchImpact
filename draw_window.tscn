@@ -52,9 +52,13 @@ script = ExtResource("1_gvoqh")
 [node name="HBoxContainer" type="HBoxContainer" parent="MarginContainer/VBoxContainer" unique_id=241432349]
 layout_mode = 2
 
-[node name="Button" type="Button" parent="MarginContainer/VBoxContainer/HBoxContainer" unique_id=1707114256]
+[node name="UpButton" type="Button" parent="MarginContainer/VBoxContainer/HBoxContainer" unique_id=987654321]
 layout_mode = 2
-text = "Save"
+text = "↑"
+
+[node name="DownButton" type="Button" parent="MarginContainer/VBoxContainer/HBoxContainer" unique_id=1707114256]
+layout_mode = 2
+text = "↓"
 
 [node name="SpawnButton" type="Button" parent="MarginContainer/VBoxContainer/HBoxContainer" unique_id=1619276677]
 layout_mode = 2
@@ -120,5 +124,6 @@ custom_maximum_size = Vector2(64, 64)
 layout_mode = 2
 theme = SubResource("Theme_gvoqh")
 
-[connection signal="pressed" from="MarginContainer/VBoxContainer/HBoxContainer/Button" to="." method="_on_button_pressed"]
+[connection signal="pressed" from="MarginContainer/VBoxContainer/HBoxContainer/UpButton" to="." method="_on_up_pressed"]
+[connection signal="pressed" from="MarginContainer/VBoxContainer/HBoxContainer/DownButton" to="." method="_on_down_pressed"]
 [connection signal="pressed" from="MarginContainer/VBoxContainer/HBoxContainer/SpawnButton" to="." method="_on_spawn_pressed"]

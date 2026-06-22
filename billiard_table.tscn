@@ -20,23 +20,24 @@ offset_right = 815.0
 offset_bottom = 618.0
 
 [node name="HelpOverlay" type="Panel" parent="." unique_id=1234567890]
-visible = false
 offset_left = 260.0
 offset_top = 185.0
 offset_right = 560.0
-offset_bottom = 435.0
+offset_bottom = 449.0
 
-[node name="Label" type="Label" parent="HelpOverlay" unique_id=1234567891]
+[node name="RichTextLabel" type="RichTextLabel" parent="HelpOverlay" unique_id=26202272]
 layout_mode = 0
 offset_left = 12.0
 offset_top = 12.0
 offset_right = 288.0
-offset_bottom = 238.0
-text = "Key Reference
-H      Help (toggle)
-X      Delete sprite
-S      Stats HUD
-B      Bounding boxes
-+      Zoom in
--      Zoom out
-Click  Impulse sprite"
+offset_bottom = 252.0
+text = "Key	Reference
+H		Help (toggle)
+X		Delete sprite
+S		Stats HUD
+B		Bounding boxes
+Q		Draw quadtree
+F		Stop all sprites
++		Zoom in
+-		Zoom out
+0..5	Scenario 0..5"
