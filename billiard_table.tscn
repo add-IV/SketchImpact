@@ -40,4 +40,4 @@ Q		Draw quadtree
 F		Stop all sprites
 +		Zoom in
 -		Zoom out
-0..5	Scenario 0..5"
+0..5	Load scenario"

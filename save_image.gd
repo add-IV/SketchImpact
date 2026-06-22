@@ -11,6 +11,8 @@ var selected_slot: int = -1
 func _ready():
 	DirAccess.make_dir_recursive_absolute("user://sprites")
 	billiard_table = get_parent().get_node_or_null("BilliardTable")
+	if billiard_table:
+		billiard_table.scenario_loaded.connect(_on_scenario_loaded)
 	for i in grid.get_child_count():
 		var slot: TextureRect = grid.get_child(i)
 		slot.mouse_filter = Control.MOUSE_FILTER_STOP
@@ -79,6 +81,19 @@ func _clear_selection():
 	selected_slot = -1
 	for i in grid.get_child_count():
 		grid.get_child(i).get_node("Highlight").visible = false
+
+func _on_scenario_loaded(images: Array[Image]) -> void:
+	saved_images.clear()
+	var children := grid.get_child_count()
+	for i in range(children):
+		(grid.get_child(i) as TextureRect).texture = null
+	for i in range(min(images.size(), children)):
+		saved_images.append(images[i])
+		var slot := grid.get_child(i) as TextureRect
+		slot.texture = ImageTexture.create_from_image(images[i])
+		slot.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+		slot.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
+	_clear_selection()
 
 func _on_spawn_pressed():
 	if billiard_table == null:

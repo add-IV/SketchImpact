@@ -1,0 +1,15 @@
+{
+	"version": 1,
+	"display_scale": 2,
+	"sprites": [],
+	"images": [
+		"res://sprites/goblin.png",
+		"res://sprites/kobold.png",
+		"res://sprites/human.png",
+		"res://sprites/elf.png",
+		"res://sprites/dragon.png",
+		"res://sprites/jelly.png",
+		"res://sprites/minotaur.png",
+		"res://sprites/cyclops.png"
+	]
+}

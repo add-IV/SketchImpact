@@ -11,14 +11,16 @@ const ZOOM_MAX := 16
 
 # Mutable at runtime via zoom in/out hotkeys
 var _display_scale := 2
-var _sprite_screen_size: float = SPRITE_PIXEL_SIZE * 2
-var _sprite_half: float = SPRITE_PIXEL_SIZE * 2 / 2.0
 
 # Struct-of-arrays: all sprite state lives here
 var positions: Array[Vector2] = []
 var velocities: Array[Vector2] = []
 var pixels: Array[PackedByteArray] = []   # alpha channel, SPRITE_PIXEL_SIZE² bytes each
 var display_nodes: Array[Node2D] = []
+var aabb_offsets: Array[Rect2] = []  # tight pixel-space bbox relative to sprite center, constant per sprite
+var aabbs: Array[Rect2] = []         # current frame screen-space bbox, updated each frame
+
+signal scenario_loaded(images: Array[Image])
 
 var broad_checks := 0   # unique pairs returned by quadtree
 var aabb_checks := 0    # pairs that passed AABB overlap test
@@ -37,8 +39,6 @@ var _sprite_scene: PackedScene = preload("res://sprite_body.tscn")
 
 func _set_display_scale(new_scale: int) -> void:
 	_display_scale = clampi(new_scale, ZOOM_MIN, ZOOM_MAX)
-	_sprite_screen_size = float(SPRITE_PIXEL_SIZE * _display_scale)
-	_sprite_half = _sprite_screen_size / 2.0
 	for node in display_nodes:
 		node.get_node("Sprite2D").scale = Vector2(_display_scale, _display_scale)
 
@@ -46,20 +46,18 @@ func _set_display_scale(new_scale: int) -> void:
 func spawn_sprite(image: Image) -> void:
 	if image.is_invisible():
 		return
-	var total := SPRITE_PIXEL_SIZE * SPRITE_PIXEL_SIZE
-	var px := PackedByteArray()
-	px.resize(total)
-	for y in range(SPRITE_PIXEL_SIZE):
-		for x in range(SPRITE_PIXEL_SIZE):
-			px[y * SPRITE_PIXEL_SIZE + x] = int(image.get_pixel(x, y).a * 255.0)
-
+	var px := _extract_pixels(image)
+	var offset := _tight_aabb_offset(px)
+	var scale := float(_display_scale)
 	var pos := Vector2(
-		randf_range(_sprite_half + 10.0, TABLE_WIDTH - _sprite_half - 10.0),
-		randf_range(_sprite_half + 10.0, TABLE_HEIGHT - _sprite_half - 10.0)
+		randf_range(-offset.position.x * scale + 10.0, TABLE_WIDTH  - (offset.position.x + offset.size.x) * scale - 10.0),
+		randf_range(-offset.position.y * scale + 10.0, TABLE_HEIGHT - (offset.position.y + offset.size.y) * scale - 10.0)
 	)
-	var angle := randf() * TAU
-	var vel := Vector2(cos(angle), sin(angle)) * randf_range(80.0, 160.0)
+	var vel := Vector2(cos(randf() * TAU), sin(randf() * TAU)) * randf_range(80.0, 160.0)
+	_do_spawn(image, px, offset, pos, vel)
 
+
+func _do_spawn(image: Image, px: PackedByteArray, offset: Rect2, pos: Vector2, vel: Vector2) -> void:
 	var node: Node2D = _sprite_scene.instantiate()
 	var sprite: Sprite2D = node.get_node("Sprite2D")
 	sprite.texture = ImageTexture.create_from_image(image)
@@ -72,6 +70,60 @@ func spawn_sprite(image: Image) -> void:
 	velocities.append(vel)
 	pixels.append(px)
 	display_nodes.append(node)
+	aabb_offsets.append(offset)
+	aabbs.append(Rect2(pos + offset.position * _display_scale, offset.size * _display_scale))
+
+
+func clear_sprites() -> void:
+	for node in display_nodes:
+		node.queue_free()
+	positions.clear()
+	velocities.clear()
+	pixels.clear()
+	display_nodes.clear()
+	aabb_offsets.clear()
+	aabbs.clear()
+
+
+func load_scenario(file_path: String) -> bool:
+	if not FileAccess.file_exists(file_path):
+		return false
+	var file := FileAccess.open(file_path, FileAccess.READ)
+	if file == null:
+		return false
+	var json := JSON.new()
+	if json.parse(file.get_as_text()) != OK:
+		return false
+	var data: Dictionary = json.data
+	clear_sprites()
+	if data.has("display_scale"):
+		_set_display_scale(int(data["display_scale"]))
+	var loaded_images: Array[Image] = []
+	for s in data.get("sprites", []):
+		var sprite_path: String = s.get("file", "")
+		if sprite_path.is_empty() or not FileAccess.file_exists(sprite_path):
+			continue
+		var img := Image.load_from_file(sprite_path)
+		if img == null:
+			continue
+		if img.get_width() != SPRITE_PIXEL_SIZE or img.get_height() != SPRITE_PIXEL_SIZE:
+			continue
+		var pos := Vector2(float(s.get("x", 0.0)), float(s.get("y", 0.0)))
+		var vel := Vector2(float(s.get("vx", 0.0)), float(s.get("vy", 0.0)))
+		var px := _extract_pixels(img)
+		_do_spawn(img, px, _tight_aabb_offset(px), pos, vel)
+		loaded_images.append(img)
+	for image_path in data.get("images", []):
+		if (image_path as String).is_empty() or not FileAccess.file_exists(image_path):
+			continue
+		var img := Image.load_from_file(image_path)
+		if img == null:
+			continue
+		if img.get_width() != SPRITE_PIXEL_SIZE or img.get_height() != SPRITE_PIXEL_SIZE:
+			img.resize(SPRITE_PIXEL_SIZE, SPRITE_PIXEL_SIZE, Image.INTERPOLATE_NEAREST)
+		loaded_images.append(img)
+	scenario_loaded.emit(loaded_images)
+	return true
 
 
 func _physics_process(delta: float) -> void:
@@ -83,12 +135,13 @@ func _physics_process(delta: float) -> void:
 	for i in range(n):
 		positions[i] += velocities[i] * delta
 		_bounce_walls(i)
+		aabbs[i] = Rect2(positions[i] + aabb_offsets[i].position * _display_scale, aabb_offsets[i].size * _display_scale)
 
 	_qt_root = null
 	if n > 1:
-		var qt := _QuadNode.new(Rect2(0.0, 0.0, TABLE_WIDTH, TABLE_HEIGHT), 0)
+		var qt := _QuadNode.new(Rect2(0.0, 0.0, TABLE_WIDTH, TABLE_HEIGHT), 0, aabbs)
 		for i in range(n):
-			qt.insert(i, _aabb(i))
+			qt.insert(i)
 		_qt_root = qt
 		var pairs: Dictionary = {}
 		qt.collect_pairs(pairs)
@@ -97,12 +150,13 @@ func _physics_process(delta: float) -> void:
 			broad_checks += 1
 			var i: int = key[0]
 			var j: int = key[1]
-			if _aabb(i).intersects(_aabb(j)):
+			if aabbs[i].intersects(aabbs[j]):
 				aabb_checks += 1
 				narrow_checks += 1
 				var col_pt := _pixel_collision(i, j)
 				if col_pt.is_finite():
 					_resolve(i, j, col_pt)
+						
 
 	for i in range(n):
 		display_nodes[i].position = positions[i]
@@ -144,12 +198,18 @@ func _input(event: InputEvent) -> void:
 		_set_display_scale(_display_scale / 2)
 		get_viewport().set_input_as_handled()
 		return
+	if event is InputEventKey and event.pressed and not event.echo:
+		var key_event := event as InputEventKey
+		if key_event.keycode >= KEY_0 and key_event.keycode <= KEY_5:
+			load_scenario("res://scenarios/scenario_%d.json" % (key_event.keycode - KEY_0))
+			get_viewport().set_input_as_handled()
+			return
 	if event is InputEventMouseButton and event.button_index == MOUSE_BUTTON_LEFT and event.pressed:
 		var click := get_local_mouse_position()
 		if not Rect2(0.0, 0.0, TABLE_WIDTH, TABLE_HEIGHT).has_point(click):
 			return
 		for i in range(positions.size()):
-			if _aabb(i).has_point(click):
+			if aabbs[i].has_point(click):
 				var angle := randf() * TAU
 				velocities[i] = Vector2(cos(angle), sin(angle)) * IMPULSE_SPEED
 				get_viewport().set_input_as_handled()
@@ -159,7 +219,7 @@ func _input(event: InputEvent) -> void:
 func _draw() -> void:
 	if _show_bounding_boxes:
 		for i in range(positions.size()):
-			draw_rect(_aabb(i), Color(1.0, 1.0, 0.0, 0.8), false, 1.0)
+			draw_rect(aabbs[i], Color(1.0, 1.0, 0.0, 0.8), false, 1.0)
 	if _show_quadtree and _qt_root != null:
 		_draw_qt_node(_qt_root)
 
@@ -170,30 +230,57 @@ func _draw_qt_node(node) -> void:
 		_draw_qt_node(child)
 
 
-func _aabb(i: int) -> Rect2:
+func _tight_aabb_offset(px: PackedByteArray) -> Rect2:
+	var s := SPRITE_PIXEL_SIZE
+	var min_x := s; var max_x := -1
+	var min_y := s; var max_y := -1
+	for y in range(s):
+		for x in range(s):
+			if px[y * s + x] > 0:
+				if x < min_x: min_x = x
+				if x > max_x: max_x = x
+				if y < min_y: min_y = y
+				if y > max_y: max_y = y
+	var half := s * 0.5
 	return Rect2(
-		positions[i] - Vector2(_sprite_half, _sprite_half),
-		Vector2(_sprite_screen_size, _sprite_screen_size)
+		Vector2(min_x - half, min_y - half),
+		Vector2(max_x - min_x + 1, max_y - min_y + 1)
 	)
 
 
 func _bounce_walls(i: int) -> void:
 	var pos := positions[i]
 	var vel := velocities[i]
-	if pos.x - _sprite_half < 0.0:
-		pos.x = _sprite_half
+	var o := aabb_offsets[i]
+	var scale := float(_display_scale)
+	var left   := o.position.x * scale
+	var top    := o.position.y * scale
+	var right  := left + o.size.x * scale
+	var bottom := top  + o.size.y * scale
+	if pos.x + left < 0.0:
+		pos.x = -left
 		vel.x = absf(vel.x)
-	elif pos.x + _sprite_half > TABLE_WIDTH:
-		pos.x = TABLE_WIDTH - _sprite_half
+	elif pos.x + right > TABLE_WIDTH:
+		pos.x = TABLE_WIDTH - right
 		vel.x = -absf(vel.x)
-	if pos.y - _sprite_half < 0.0:
-		pos.y = _sprite_half
+	if pos.y + top < 0.0:
+		pos.y = -top
 		vel.y = absf(vel.y)
-	elif pos.y + _sprite_half > TABLE_HEIGHT:
-		pos.y = TABLE_HEIGHT - _sprite_half
+	elif pos.y + bottom > TABLE_HEIGHT:
+		pos.y = TABLE_HEIGHT - bottom
 		vel.y = -absf(vel.y)
 	positions[i] = pos
 	velocities[i] = vel
+
+
+func _extract_pixels(image: Image) -> PackedByteArray:
+	var s := SPRITE_PIXEL_SIZE
+	var px := PackedByteArray()
+	px.resize(s * s)
+	for y in range(s):
+		for x in range(s):
+			px[y * s + x] = int(image.get_pixel(x, y).a * 255.0)
+	return px
 
 
 func _pixel_collision(i: int, j: int) -> Vector2:
@@ -203,8 +290,16 @@ func _pixel_collision(i: int, j: int) -> Vector2:
 	var px_i := pixels[i]
 	var px_j := pixels[j]
 	var s := SPRITE_PIXEL_SIZE
-	for pya in range(s):
-		for pxa in range(s):
+	var pxa_lo := clampi(int(floor(dx)),        0, s - 1)
+	var pxa_hi := clampi(int(ceil(dx)) + s - 1, 0, s - 1)
+	var pya_lo := clampi(int(floor(dy)),        0, s - 1)
+	var pya_hi := clampi(int(ceil(dy)) + s - 1, 0, s - 1)
+	var pxa_step := -1 if dx > 0 else 1
+	var pya_step := -1 if dy > 0 else 1
+	var pxa_start := pxa_hi if pxa_step < 0 else pxa_lo
+	var pya_start := pya_hi if pya_step < 0 else pya_lo
+	for pya in range(pya_start, pya_start + (pya_hi - pya_lo + 1) * pya_step, pya_step):
+		for pxa in range(pxa_start, pxa_start + (pxa_hi - pxa_lo + 1) * pxa_step, pxa_step):
 			if px_i[pya * s + pxa] == 0:
 				continue
 			# Candidate pixels of j whose screen rect overlaps pixel (pxa, pya) of i
@@ -247,46 +342,48 @@ class _QuadNode:
 
 	var bounds: Rect2
 	var depth: int
-	var items: Array   # Array of [idx: int, aabb: Rect2]
+	var aabbs: Array[Rect2]  # shared reference, owned by _physics_process
+	var items: Array[int]
 	var children: Array  # Array of _QuadNode, empty when leaf
 
-	func _init(b: Rect2, d: int) -> void:
+	func _init(b: Rect2, d: int, a: Array[Rect2]) -> void:
 		bounds = b
 		depth = d
+		aabbs = a
 		items = []
 		children = []
 
-	func insert(idx: int, aabb: Rect2) -> void:
-		if not bounds.intersects(aabb):
+	func insert(idx: int) -> void:
+		if not bounds.intersects(aabbs[idx]):
 			return
 		if children.is_empty():
-			items.append([idx, aabb])
+			items.append(idx)
 			if items.size() > MAX_ITEMS and depth < MAX_DEPTH:
 				_subdivide()
 		else:
 			for child in children:
-				child.insert(idx, aabb)
+				child.insert(idx)
 
 	func _subdivide() -> void:
 		var half := bounds.size * 0.5
 		children = [
-			_QuadNode.new(Rect2(bounds.position, half), depth + 1),
-			_QuadNode.new(Rect2(bounds.position + Vector2(half.x, 0.0), half), depth + 1),
-			_QuadNode.new(Rect2(bounds.position + Vector2(0.0, half.y), half), depth + 1),
-			_QuadNode.new(Rect2(bounds.position + half, half), depth + 1),
+			_QuadNode.new(Rect2(bounds.position, half), depth + 1, aabbs),
+			_QuadNode.new(Rect2(bounds.position + Vector2(half.x, 0.0), half), depth + 1, aabbs),
+			_QuadNode.new(Rect2(bounds.position + Vector2(0.0, half.y), half), depth + 1, aabbs),
+			_QuadNode.new(Rect2(bounds.position + half, half), depth + 1, aabbs),
 		]
 		var old := items.duplicate()
 		items = []
 		for it in old:
 			for child in children:
-				child.insert(it[0], it[1])
+				child.insert(it)
 
 	func collect_pairs(out: Dictionary) -> void:
 		if children.is_empty():
 			for a in range(items.size()):
 				for b in range(a + 1, items.size()):
-					var ia: int = items[a][0]
-					var ib: int = items[b][0]
+					var ia: int = items[a]
+					var ib: int = items[b]
 					if ia > ib:
 						var t := ia
 						ia = ib
