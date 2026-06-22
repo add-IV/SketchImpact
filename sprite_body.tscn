@@ -1,0 +1,6 @@
+[gd_scene format=3 uid="uid://b3spritebody1"]
+
+[node name="SpriteBody" type="Node2D" unique_id=968556832]
+
+[node name="Sprite2D" type="Sprite2D" parent="." unique_id=340081474]
+texture_filter = 1

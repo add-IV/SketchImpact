@@ -12,7 +12,12 @@ func _ready():
 func clear_image():
 	image = Image.create(image_size.x, image_size.y, false, Image.FORMAT_RGBA8)
 	image.fill(Color.TRANSPARENT)
-	
+
+	texture_buffer = ImageTexture.create_from_image(image)
+	self.texture = texture_buffer
+
+func load_image(img: Image):
+	image = img.duplicate()
 	texture_buffer = ImageTexture.create_from_image(image)
 	self.texture = texture_buffer
 

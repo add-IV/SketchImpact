@@ -1,0 +1,42 @@
+[gd_scene format=3 uid="uid://c1billtable55"]
+
+[ext_resource type="Script" uid="uid://hjg6yhv7e7qa" path="res://billiard_table.gd" id="1_table"]
+
+[node name="BilliardTable" type="Node2D" unique_id=272897117]
+script = ExtResource("1_table")
+
+[node name="Background" type="ColorRect" parent="." unique_id=1766171845]
+z_index = -1
+offset_right = 820.0
+offset_bottom = 620.0
+color = Color(0.11, 0.36, 0.17, 1)
+
+[node name="Sprites" type="Node2D" parent="." unique_id=2078563124]
+
+[node name="HUD" type="Label" parent="." unique_id=1850546111]
+offset_left = 5.0
+offset_top = 598.0
+offset_right = 815.0
+offset_bottom = 618.0
+
+[node name="HelpOverlay" type="Panel" parent="." unique_id=1234567890]
+visible = false
+offset_left = 260.0
+offset_top = 185.0
+offset_right = 560.0
+offset_bottom = 435.0
+
+[node name="Label" type="Label" parent="HelpOverlay" unique_id=1234567891]
+layout_mode = 0
+offset_left = 12.0
+offset_top = 12.0
+offset_right = 288.0
+offset_bottom = 238.0
+text = "Key Reference
+H      Help (toggle)
+X      Delete sprite
+S      Stats HUD
+B      Bounding boxes
++      Zoom in
+-      Zoom out
+Click  Impulse sprite"

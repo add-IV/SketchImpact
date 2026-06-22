@@ -1,8 +1,11 @@
 [gd_scene format=3 uid="uid://q88c46r2qjer"]
 
 [ext_resource type="PackedScene" uid="uid://dqvfy18850e85" path="res://draw_window.tscn" id="1_8ihcw"]
+[ext_resource type="PackedScene" uid="uid://c1billtable55" path="res://billiard_table.tscn" id="2_table"]
 
 [node name="Node2D" type="Node2D" unique_id=927373228]
+
+[node name="BilliardTable" parent="." unique_id=787814886 instance=ExtResource("2_table")]
 
 [node name="DrawWindow" parent="." unique_id=1559079329 instance=ExtResource("1_8ihcw")]
 position = Vector2(850, 0)
