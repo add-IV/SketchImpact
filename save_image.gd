@@ -6,6 +6,7 @@ extends Node2D
 var save_count := 0
 var billiard_table: Node
 var saved_images: Array[Image] = []
+var selected_slot: int = -1
 
 func _ready():
 	DirAccess.make_dir_recursive_absolute("user://sprites")
@@ -15,7 +16,22 @@ func _ready():
 		slot.mouse_filter = Control.MOUSE_FILTER_STOP
 		slot.gui_input.connect(_on_slot_gui_input.bind(i))
 
-func _on_button_pressed():
+		var highlight := Panel.new()
+		highlight.name = "Highlight"
+		highlight.anchor_right = 1.0
+		highlight.anchor_bottom = 1.0
+		highlight.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		highlight.visible = false
+		var style := StyleBoxFlat.new()
+		style.bg_color = Color(0, 0, 0, 0)
+		style.border_color = Color(1, 1, 0, 1)
+		style.set_border_width_all(3)
+		highlight.add_theme_stylebox_override("panel", style)
+		slot.add_child(highlight)
+
+	drawWindow.drew.connect(_clear_selection)
+
+func _on_down_pressed():
 	var image: Image = drawWindow.image.duplicate()
 
 	var children := grid.get_child_count()
@@ -37,13 +53,37 @@ func _on_button_pressed():
 
 	save_count += 1
 	drawWindow.clear_image()
+	_clear_selection()
+
+func _on_up_pressed():
+	if selected_slot == -1 or selected_slot >= saved_images.size():
+		return
+	drawWindow.load_image(saved_images[selected_slot])
+	_clear_selection()
 
 func _on_slot_gui_input(event: InputEvent, index: int):
 	if event is InputEventMouseButton and event.button_index == MOUSE_BUTTON_LEFT and event.pressed:
-		if index < saved_images.size():
-			drawWindow.load_image(saved_images[index])
+		if index >= saved_images.size():
+			return
+		if selected_slot == index:
+			_clear_selection()
+		else:
+			_set_selection(index)
+
+func _set_selection(index: int):
+	selected_slot = index
+	for i in grid.get_child_count():
+		grid.get_child(i).get_node("Highlight").visible = (i == index)
+
+func _clear_selection():
+	selected_slot = -1
+	for i in grid.get_child_count():
+		grid.get_child(i).get_node("Highlight").visible = false
 
 func _on_spawn_pressed():
 	if billiard_table == null:
 		return
-	billiard_table.spawn_sprite(drawWindow.image.duplicate())
+	if selected_slot != -1 and selected_slot < saved_images.size():
+		billiard_table.spawn_sprite(saved_images[selected_slot].duplicate())
+	else:
+		billiard_table.spawn_sprite(drawWindow.image.duplicate())

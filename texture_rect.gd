@@ -1,6 +1,8 @@
 extends TextureRect
 
-var image_size := Vector2i(16, 16)
+signal drew
+
+var image_size := Vector2i(32, 32)
 var image: Image
 var texture_buffer: ImageTexture
 var is_drawing: bool = false
@@ -32,7 +34,8 @@ func _gui_input(event):
 
 func paint_at_mouse(mouse_pos: Vector2):
 	var scale_factor = Vector2(image_size) / size
-	var pixel_pos = Vector2i(mouse_pos * scale_factor)
+	var pixel_pos = Vector2i(mouse_pos * scale_factor).clamp(Vector2i.ZERO, image_size - Vector2i.ONE)
 	
 	image.set_pixel(pixel_pos.x, pixel_pos.y, $"../../ColorPickerButton".color)
 	texture_buffer.update(image)
+	drew.emit()
