@@ -46,6 +46,8 @@ func _set_display_scale(new_scale: int) -> void:
 func spawn_sprite(image: Image) -> void:
 	if image.is_invisible():
 		return
+	if image.get_width() != SPRITE_PIXEL_SIZE or image.get_height() != SPRITE_PIXEL_SIZE:
+		return
 	var px := _extract_pixels(image)
 	var offset := _tight_aabb_offset(px)
 	var scale := float(_display_scale)
@@ -85,22 +87,22 @@ func clear_sprites() -> void:
 	aabbs.clear()
 
 
-func load_scenario(file_path: String) -> bool:
+func _parse_scenario_json(file_path: String) -> Variant:
 	if not FileAccess.file_exists(file_path):
-		return false
+		return null
 	var file := FileAccess.open(file_path, FileAccess.READ)
 	if file == null:
-		return false
+		return null
 	var json := JSON.new()
 	if json.parse(file.get_as_text()) != OK:
-		return false
-	var data: Dictionary = json.data
-	clear_sprites()
-	if data.has("display_scale"):
-		_set_display_scale(int(data["display_scale"]))
+		return null
+	return json.data
+
+
+func _load_sprites_from_data(data: Dictionary) -> Array[Image]:
 	var loaded_images: Array[Image] = []
-	for s in data.get("sprites", []):
-		var sprite_path: String = s.get("file", "")
+	for sprite_data in data.get("sprites", []):
+		var sprite_path: String = sprite_data.get("file", "")
 		if sprite_path.is_empty() or not FileAccess.file_exists(sprite_path):
 			continue
 		var img := Image.load_from_file(sprite_path)
@@ -108,11 +110,16 @@ func load_scenario(file_path: String) -> bool:
 			continue
 		if img.get_width() != SPRITE_PIXEL_SIZE or img.get_height() != SPRITE_PIXEL_SIZE:
 			continue
-		var pos := Vector2(float(s.get("x", 0.0)), float(s.get("y", 0.0)))
-		var vel := Vector2(float(s.get("vx", 0.0)), float(s.get("vy", 0.0)))
+		var pos := Vector2(float(sprite_data.get("x", 0.0)), float(sprite_data.get("y", 0.0)))
+		var vel := Vector2(float(sprite_data.get("vx", 0.0)), float(sprite_data.get("vy", 0.0)))
 		var px := _extract_pixels(img)
 		_do_spawn(img, px, _tight_aabb_offset(px), pos, vel)
 		loaded_images.append(img)
+	return loaded_images
+
+
+func _load_images_from_data(data: Dictionary) -> Array[Image]:
+	var loaded_images: Array[Image] = []
 	for image_path in data.get("images", []):
 		if (image_path as String).is_empty() or not FileAccess.file_exists(image_path):
 			continue
@@ -122,6 +129,20 @@ func load_scenario(file_path: String) -> bool:
 		if img.get_width() != SPRITE_PIXEL_SIZE or img.get_height() != SPRITE_PIXEL_SIZE:
 			img.resize(SPRITE_PIXEL_SIZE, SPRITE_PIXEL_SIZE, Image.INTERPOLATE_NEAREST)
 		loaded_images.append(img)
+	return loaded_images
+
+
+func load_scenario(file_path: String) -> bool:
+	var parsed: Variant = _parse_scenario_json(file_path)
+	if parsed == null:
+		return false
+	var data: Dictionary = parsed
+	clear_sprites()
+	if data.has("display_scale"):
+		_set_display_scale(int(data["display_scale"]))
+	var loaded_images: Array[Image] = []
+	loaded_images.append_array(_load_sprites_from_data(data))
+	loaded_images.append_array(_load_images_from_data(data))
 	scenario_loaded.emit(loaded_images)
 	return true
 
@@ -131,7 +152,7 @@ func _physics_process(delta: float) -> void:
 	broad_checks = 0
 	aabb_checks = 0
 	narrow_checks = 0
-	
+
 	for i in range(n):
 		positions[i] += velocities[i] * delta
 		_bounce_walls(i)
@@ -145,9 +166,9 @@ func _physics_process(delta: float) -> void:
 		_qt_root = qt
 		var pairs: Dictionary = {}
 		qt.collect_pairs(pairs)
+		broad_checks = pairs.size()
 
 		for key in pairs:
-			broad_checks += 1
 			var i: int = key[0]
 			var j: int = key[1]
 			if aabbs[i].intersects(aabbs[j]):
@@ -156,7 +177,7 @@ func _physics_process(delta: float) -> void:
 				var col_pt := _pixel_collision(i, j)
 				if col_pt.is_finite():
 					_resolve(i, j, col_pt)
-						
+
 
 	for i in range(n):
 		display_nodes[i].position = positions[i]
@@ -283,13 +304,28 @@ func _extract_pixels(image: Image) -> PackedByteArray:
 	return px
 
 
+func _find_overlapping_j_pixel(pxa: int, pya: int, px_j: PackedByteArray, dx: float, dy: float) -> Vector2i:
+	var s := SPRITE_PIXEL_SIZE
+	var pxb_f := float(pxa) - dx
+	var pyb_f := float(pya) - dy
+	for pxb in [int(floor(pxb_f)), int(ceil(pxb_f))]:
+		if pxb < 0 or pxb >= s:
+			continue
+		for pyb in [int(floor(pyb_f)), int(ceil(pyb_f))]:
+			if pyb < 0 or pyb >= s:
+				continue
+			if px_j[pyb * s + pxb] > 0:
+				return Vector2i(pxb, pyb)
+	return Vector2i(-1, -1)
+
+
 func _pixel_collision(i: int, j: int) -> Vector2:
 	# Returns the screen-space collision point, or Vector2.INF if no collision.
+	var s := SPRITE_PIXEL_SIZE
 	var dx := (positions[j].x - positions[i].x) / float(_display_scale)
 	var dy := (positions[j].y - positions[i].y) / float(_display_scale)
 	var px_i := pixels[i]
 	var px_j := pixels[j]
-	var s := SPRITE_PIXEL_SIZE
 	var pxa_lo := clampi(int(floor(dx)),        0, s - 1)
 	var pxa_hi := clampi(int(ceil(dx)) + s - 1, 0, s - 1)
 	var pya_lo := clampi(int(floor(dy)),        0, s - 1)
@@ -298,24 +334,16 @@ func _pixel_collision(i: int, j: int) -> Vector2:
 	var pya_step := -1 if dy > 0 else 1
 	var pxa_start := pxa_hi if pxa_step < 0 else pxa_lo
 	var pya_start := pya_hi if pya_step < 0 else pya_lo
+	var half := s * 0.5
 	for pya in range(pya_start, pya_start + (pya_hi - pya_lo + 1) * pya_step, pya_step):
 		for pxa in range(pxa_start, pxa_start + (pxa_hi - pxa_lo + 1) * pxa_step, pxa_step):
 			if px_i[pya * s + pxa] == 0:
 				continue
-			# Candidate pixels of j whose screen rect overlaps pixel (pxa, pya) of i
-			var pxb_f := float(pxa) - dx
-			var pyb_f := float(pya) - dy
-			for pxb in [int(floor(pxb_f)), int(ceil(pxb_f))]:
-				if pxb < 0 or pxb >= s:
-					continue
-				for pyb in [int(floor(pyb_f)), int(ceil(pyb_f))]:
-					if pyb < 0 or pyb >= s:
-						continue
-					if px_j[pyb * s + pxb] > 0:
-						var half := s * 0.5
-						var pt_i := positions[i] + Vector2(pxa + 0.5 - half, pya + 0.5 - half) * _display_scale
-						var pt_j := positions[j] + Vector2(pxb + 0.5 - half, pyb + 0.5 - half) * _display_scale
-						return (pt_i + pt_j) * 0.5
+			var hit := _find_overlapping_j_pixel(pxa, pya, px_j, dx, dy)
+			if hit.x != -1:
+				var pt_i := positions[i] + Vector2(pxa + 0.5 - half, pya + 0.5 - half) * _display_scale
+				var pt_j := positions[j] + Vector2(hit.x + 0.5 - half, hit.y + 0.5 - half) * _display_scale
+				return (pt_i + pt_j) * 0.5
 	return Vector2.INF
 
 

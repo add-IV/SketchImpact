@@ -43,8 +43,7 @@ func _on_down_pressed():
 
 	var first: TextureRect = grid.get_child(0)
 	first.texture = ImageTexture.create_from_image(image)
-	first.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
-	first.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
+	_configure_slot(first)
 
 	saved_images.push_front(image)
 	if saved_images.size() > children:
@@ -70,29 +69,31 @@ func _on_slot_gui_input(event: InputEvent, index: int):
 		if selected_slot == index:
 			_clear_selection()
 		else:
-			_set_selection(index)
+			_set_highlight(index)
 
-func _set_selection(index: int):
+func _set_highlight(index: int) -> void:
 	selected_slot = index
 	for i in grid.get_child_count():
 		grid.get_child(i).get_node("Highlight").visible = (i == index)
 
-func _clear_selection():
-	selected_slot = -1
-	for i in grid.get_child_count():
-		grid.get_child(i).get_node("Highlight").visible = false
+func _clear_selection() -> void:
+	_set_highlight(-1)
+
+func _configure_slot(slot: TextureRect) -> void:
+	slot.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+	slot.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
 
 func _on_scenario_loaded(images: Array[Image]) -> void:
 	saved_images.clear()
 	var children := grid.get_child_count()
 	for i in range(children):
-		(grid.get_child(i) as TextureRect).texture = null
-	for i in range(min(images.size(), children)):
-		saved_images.append(images[i])
 		var slot := grid.get_child(i) as TextureRect
-		slot.texture = ImageTexture.create_from_image(images[i])
-		slot.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
-		slot.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
+		if i < images.size():
+			saved_images.append(images[i])
+			slot.texture = ImageTexture.create_from_image(images[i])
+			_configure_slot(slot)
+		else:
+			slot.texture = null
 	_clear_selection()
 
 func _on_spawn_pressed():

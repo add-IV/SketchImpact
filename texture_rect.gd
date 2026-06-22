@@ -6,7 +6,6 @@ var image_size := Vector2i(32, 32)
 var image: Image
 var texture_buffer: ImageTexture
 var is_drawing: bool = false
-var brush_color: Color = Color.BLACK
 
 func _ready():
 	clear_image()
