@@ -20,4 +20,4 @@ data_*/
 mono_crash.*.json
 
 # sprites folder
-/sprites/*
+sprites/
