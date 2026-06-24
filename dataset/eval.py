@@ -102,7 +102,7 @@ def main() -> None:
         dummy = torch.zeros(1, 6, 32, 32, device=device)
         torch.onnx.export(
             model, dummy, str(out),
-            opset_version=17,
+            opset_version=18,
             input_names=["input"],
             output_names=["logit"],
             dynamic_axes={"input": {0: "batch"}, "logit": {0: "batch"}},
