@@ -106,6 +106,7 @@ def main() -> None:
             input_names=["input"],
             output_names=["logit"],
             dynamic_axes={"input": {0: "batch"}, "logit": {0: "batch"}},
+            dynamo=False,
         )
         print(f"\nONNX model saved → {out}")
 
