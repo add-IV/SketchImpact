@@ -6,4 +6,8 @@ dependencies = [
     "numpy",
     "Pillow",
     "tqdm",
+    "torch",
 ]
+
+[tool.setuptools]
+py-modules = []
