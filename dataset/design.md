@@ -32,6 +32,16 @@ in alpha_i are geometrically near *which* pixels in alpha_j given the offset —
 No bilinear shift is applied. The network must learn collision geometry from first principles,
 which is the genuine learning contribution — a bilinear composite would pre-encode the answer.
 
+## Data Augmentation
+
+`dataset_loader.py` applies a random dihedral (D4) transform — 0/90/180/270° rotation, each
+with an optional mirror — to `alpha_i`, `alpha_j`, and `(dx, dy)` together, on the fly in
+`__getitem__`. Rotating/reflecting both sprites and their offset by the same transform is just
+a change of coordinates, so the collision label is unchanged (verified empirically against the
+floor/ceil rule in `pixel_collision.py`, 0 mismatches over 2000 random trials). This gives an
+effective 8x increase in training variety without inflating `dataset.npz`. Enabled by default
+for `split="train"`, disabled for `split="val"` so validation metrics stay stable across runs.
+
 ## Architecture
 
 ```

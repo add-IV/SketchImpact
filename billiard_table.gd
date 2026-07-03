@@ -25,6 +25,19 @@ signal scenario_loaded(images: Array[Image])
 var broad_checks := 0   # unique pairs returned by quadtree
 var aabb_checks := 0    # pairs that passed AABB overlap test
 var narrow_checks := 0  # pairs that reached pixel-perfect check
+var model_skips := 0    # pairs the CNN filter skipped without a pixel check
+
+# Eval mode also runs the ground-truth pixel check on pairs the model skipped,
+# so it can tell false skips from true ones. This cancels the CNN's speed-up
+# while active — it's a measurement tool, not the default play mode.
+var eval_mode := false
+var false_positives := 0  # model flagged the pair, pixel check found no collision
+var false_negatives := 0  # model skipped the pair, but a collision was actually there
+var eval_flagged_total := 0  # pairs the model flagged, seen while eval mode was on
+var eval_skipped_total := 0  # pairs the model skipped, seen while eval mode was on
+
+var _collision_model_scene := preload("res://collision_model.gd")
+var collision_model: Node
 
 var _show_bounding_boxes := false
 var _show_quadtree := false
@@ -35,6 +48,11 @@ var _qt_root = null
 @onready var help_overlay: Panel = $HelpOverlay
 
 var _sprite_scene: PackedScene = preload("res://sprite_body.tscn")
+
+
+func _ready() -> void:
+	collision_model = _collision_model_scene.new()
+	add_child(collision_model)
 
 
 func _set_display_scale(new_scale: int) -> void:
@@ -68,12 +86,14 @@ func _do_spawn(image: Image, px: PackedByteArray, offset: Rect2, pos: Vector2, v
 	node.position = pos
 	sprites_container.add_child(node)
 
+	var idx := positions.size()
 	positions.append(pos)
 	velocities.append(vel)
 	pixels.append(px)
 	display_nodes.append(node)
 	aabb_offsets.append(offset)
 	aabbs.append(Rect2(pos + offset.position * _display_scale, offset.size * _display_scale))
+	collision_model.register_sprite(idx, px)
 
 
 func clear_sprites() -> void:
@@ -85,6 +105,7 @@ func clear_sprites() -> void:
 	display_nodes.clear()
 	aabb_offsets.clear()
 	aabbs.clear()
+	collision_model.clear()
 
 
 func _parse_scenario_json(file_path: String) -> Variant:
@@ -152,6 +173,7 @@ func _physics_process(delta: float) -> void:
 	broad_checks = 0
 	aabb_checks = 0
 	narrow_checks = 0
+	model_skips = 0
 
 	for i in range(n):
 		positions[i] += velocities[i] * delta
@@ -168,22 +190,66 @@ func _physics_process(delta: float) -> void:
 		qt.collect_pairs(pairs)
 		broad_checks = pairs.size()
 
+		var candidates: Array = []
 		for key in pairs:
 			var i: int = key[0]
 			var j: int = key[1]
 			if aabbs[i].intersects(aabbs[j]):
 				aabb_checks += 1
+				candidates.append([i, j])
+
+		var queries: Array = []
+		for pair in candidates:
+			var i: int = pair[0]
+			var j: int = pair[1]
+			var dx := (positions[j].x - positions[i].x) / float(_display_scale)
+			var dy := (positions[j].y - positions[i].y) / float(_display_scale)
+			queries.append([i, j, dx, dy])
+		var maybe: Array = collision_model.query_pairs(queries)
+
+		for k in range(candidates.size()):
+			var predicted_collision: bool = maybe[k]
+			if not predicted_collision:
+				model_skips += 1
+				if not eval_mode:
+					continue
+
+			var i: int = candidates[k][0]
+			var j: int = candidates[k][1]
+			if predicted_collision:
 				narrow_checks += 1
-				var col_pt := _pixel_collision(i, j)
-				if col_pt.is_finite():
-					_resolve(i, j, col_pt)
+			var col_pt := _pixel_collision(i, j)
+			var actual_collision := col_pt.is_finite()
+
+			if eval_mode:
+				if predicted_collision:
+					eval_flagged_total += 1
+					if not actual_collision:
+						false_positives += 1
+				else:
+					eval_skipped_total += 1
+					if actual_collision:
+						false_negatives += 1
+
+			if predicted_collision and actual_collision:
+				_resolve(i, j, col_pt)
 
 
 	for i in range(n):
 		display_nodes[i].position = positions[i]
 
-	hud_label.text = "Sprites: %d  |  Quadtree pairs: %d  |  AABB hits: %d  |  Pixel checks: %d" % [
-		n, broad_checks, aabb_checks, narrow_checks
+	var eval_text := ""
+	if eval_mode:
+		var fp_rate := 100.0 * false_positives / eval_flagged_total if eval_flagged_total > 0 else 0.0
+		var fn_rate := 100.0 * false_negatives / eval_skipped_total if eval_skipped_total > 0 else 0.0
+		eval_text = "  |  FP: %d/%d (%.1f%%)  FN: %d/%d (%.1f%%)" % [
+			false_positives, eval_flagged_total, fp_rate,
+			false_negatives, eval_skipped_total, fn_rate
+		]
+	hud_label.text = "Sprites: %d  |  Quadtree pairs: %d  |  AABB hits: %d  |  Pixel checks: %d  |  Model skips: %d%s%s" % [
+		n, broad_checks, aabb_checks, narrow_checks, model_skips,
+		"" if collision_model.is_ready() else "  (model off)",
+		eval_text
 	]
 	queue_redraw()
 
@@ -208,6 +274,19 @@ func _input(event: InputEvent) -> void:
 	if event.is_action_pressed("freeze"):
 		for i in range(velocities.size()):
 			velocities[i] = Vector2.ZERO
+		get_viewport().set_input_as_handled()
+		return
+	if event.is_action_pressed("toggle model"):
+		collision_model.enabled = not collision_model.enabled
+		get_viewport().set_input_as_handled()
+		return
+	if event.is_action_pressed("toggle eval"):
+		eval_mode = not eval_mode
+		if eval_mode:
+			false_positives = 0
+			false_negatives = 0
+			eval_flagged_total = 0
+			eval_skipped_total = 0
 		get_viewport().set_input_as_handled()
 		return
 	if event.is_action_pressed("zoom in"):
@@ -347,6 +426,8 @@ func _pixel_collision(i: int, j: int) -> Vector2:
 	return Vector2.INF
 
 
+const SEPARATION_PUSH := 1.0  # native sprite pixels to push each sprite apart per resolved collision
+
 func _resolve(i: int, j: int, collision_pt: Vector2) -> void:
 	var sep := positions[j] - collision_pt
 	if sep.length_squared() < 0.0001:
@@ -362,6 +443,11 @@ func _resolve(i: int, j: int, collision_pt: Vector2) -> void:
 	if vi_dot > vj_dot:
 		velocities[i] += sep * (vj_dot - vi_dot)
 		velocities[j] += sep * (vi_dot - vj_dot)
+	# Push pixel masks apart along the normal so they don't stay interlocked;
+	# unlike the old circle-based formula, pixel-perfect masks have no closed-form
+	# overlap depth, so this nudges them apart gradually over a few frames instead.
+	positions[i] -= sep * SEPARATION_PUSH * _display_scale
+	positions[j] += sep * SEPARATION_PUSH * _display_scale
 
 
 class _QuadNode:
