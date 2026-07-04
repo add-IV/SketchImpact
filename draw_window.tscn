@@ -2,6 +2,7 @@
 
 [ext_resource type="Script" uid="uid://cjkpy0cbbforu" path="res://save_image.gd" id="1_66l80"]
 [ext_resource type="Script" uid="uid://7btrssxj5kpt" path="res://texture_rect.gd" id="1_gvoqh"]
+[ext_resource type="PackedScene" uid="uid://d5statshud01" path="res://stats_hud.tscn" id="2_statshud"]
 
 [sub_resource type="StyleBoxFlat" id="StyleBoxFlat_gvoqh"]
 bg_color = Color(1, 1, 1, 1)
@@ -123,6 +124,8 @@ custom_minimum_size = Vector2(64, 64)
 custom_maximum_size = Vector2(64, 64)
 layout_mode = 2
 theme = SubResource("Theme_gvoqh")
+
+[node name="StatsHud" parent="MarginContainer/VBoxContainer" unique_id=1227626772 instance=ExtResource("2_statshud")]
 
 [connection signal="pressed" from="MarginContainer/VBoxContainer/HBoxContainer/UpButton" to="." method="_on_up_pressed"]
 [connection signal="pressed" from="MarginContainer/VBoxContainer/HBoxContainer/DownButton" to="." method="_on_down_pressed"]

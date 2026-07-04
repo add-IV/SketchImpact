@@ -7,22 +7,25 @@ var image: Image
 var texture_buffer: ImageTexture
 var is_drawing: bool = false
 
-func _ready():
+func _ready() -> void:
 	clear_image()
 
-func clear_image():
+
+func clear_image() -> void:
 	image = Image.create(image_size.x, image_size.y, false, Image.FORMAT_RGBA8)
 	image.fill(Color.TRANSPARENT)
 
 	texture_buffer = ImageTexture.create_from_image(image)
 	self.texture = texture_buffer
 
-func load_image(img: Image):
+
+func load_image(img: Image) -> void:
 	image = img.duplicate()
 	texture_buffer = ImageTexture.create_from_image(image)
 	self.texture = texture_buffer
 
-func _gui_input(event):
+
+func _gui_input(event: InputEvent) -> void:
 	if event is InputEventMouseButton:
 		if event.button_index == MOUSE_BUTTON_LEFT:
 			is_drawing = event.pressed
@@ -31,10 +34,11 @@ func _gui_input(event):
 	elif event is InputEventMouseMotion and is_drawing:
 		paint_at_mouse(event.position)
 
-func paint_at_mouse(mouse_pos: Vector2):
-	var scale_factor = Vector2(image_size) / size
-	var pixel_pos = Vector2i(mouse_pos * scale_factor).clamp(Vector2i.ZERO, image_size - Vector2i.ONE)
-	
+
+func paint_at_mouse(mouse_pos: Vector2) -> void:
+	var scale_factor := Vector2(image_size) / size
+	var pixel_pos := Vector2i(mouse_pos * scale_factor).clamp(Vector2i.ZERO, image_size - Vector2i.ONE)
+
 	image.set_pixel(pixel_pos.x, pixel_pos.y, $"../../ColorPickerButton".color)
 	texture_buffer.update(image)
 	drew.emit()

@@ -1,0 +1,7 @@
+[gd_scene format=3 uid="uid://d5statshud01"]
+
+[ext_resource type="Script" uid="uid://bjnqdqv256o1c" path="res://stats_hud.gd" id="1_stats"]
+
+[node name="StatsHud" type="Label" unique_id=847213569]
+theme_override_font_sizes/font_size = 13
+script = ExtResource("1_stats")

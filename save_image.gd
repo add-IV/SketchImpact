@@ -8,7 +8,7 @@ var billiard_table: Node
 var saved_images: Array[Image] = []
 var selected_slot: int = -1
 
-func _ready():
+func _ready() -> void:
 	DirAccess.make_dir_recursive_absolute("user://sprites")
 	billiard_table = get_parent().get_node_or_null("BilliardTable")
 	if billiard_table:
@@ -33,7 +33,8 @@ func _ready():
 
 	drawWindow.drew.connect(_clear_selection)
 
-func _on_down_pressed():
+
+func _on_down_pressed() -> void:
 	var image: Image = drawWindow.image.duplicate()
 
 	var children := grid.get_child_count()
@@ -56,13 +57,15 @@ func _on_down_pressed():
 	drawWindow.clear_image()
 	_clear_selection()
 
-func _on_up_pressed():
+
+func _on_up_pressed() -> void:
 	if selected_slot == -1 or selected_slot >= saved_images.size():
 		return
 	drawWindow.load_image(saved_images[selected_slot])
 	_clear_selection()
 
-func _on_slot_gui_input(event: InputEvent, index: int):
+
+func _on_slot_gui_input(event: InputEvent, index: int) -> void:
 	if event is InputEventMouseButton and event.button_index == MOUSE_BUTTON_LEFT and event.pressed:
 		if index >= saved_images.size():
 			return
@@ -71,17 +74,21 @@ func _on_slot_gui_input(event: InputEvent, index: int):
 		else:
 			_set_highlight(index)
 
+
 func _set_highlight(index: int) -> void:
 	selected_slot = index
 	for i in grid.get_child_count():
 		grid.get_child(i).get_node("Highlight").visible = (i == index)
 
+
 func _clear_selection() -> void:
 	_set_highlight(-1)
+
 
 func _configure_slot(slot: TextureRect) -> void:
 	slot.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
 	slot.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
+
 
 func _on_scenario_loaded(images: Array[Image]) -> void:
 	saved_images.clear()
@@ -96,7 +103,8 @@ func _on_scenario_loaded(images: Array[Image]) -> void:
 			slot.texture = null
 	_clear_selection()
 
-func _on_spawn_pressed():
+
+func _on_spawn_pressed() -> void:
 	if billiard_table == null:
 		return
 	if selected_slot != -1 and selected_slot < saved_images.size():

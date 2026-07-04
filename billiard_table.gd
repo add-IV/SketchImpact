@@ -43,7 +43,6 @@ var _show_bounding_boxes := false
 var _show_quadtree := false
 var _qt_root = null
 
-@onready var hud_label: Label = $HUD
 @onready var sprites_container: Node2D = $Sprites
 @onready var help_overlay: Panel = $HelpOverlay
 
@@ -51,6 +50,7 @@ var _sprite_scene: PackedScene = preload("res://sprite_body.tscn")
 
 
 func _ready() -> void:
+	add_to_group("billiard_table")
 	collision_model = _collision_model_scene.new()
 	add_child(collision_model)
 
@@ -238,33 +238,15 @@ func _physics_process(delta: float) -> void:
 			if predicted_collision and actual_collision:
 				_resolve(i, j, col_pt)
 
-
 	for i in range(n):
 		display_nodes[i].position = positions[i]
 
-	var eval_text := ""
-	if eval_mode:
-		var fp_rate := 100.0 * false_positives / eval_flagged_total if eval_flagged_total > 0 else 0.0
-		var fn_rate := 100.0 * false_negatives / eval_skipped_total if eval_skipped_total > 0 else 0.0
-		eval_text = "  |  FP: %d/%d (%.1f%%)  FN: %d/%d (%.1f%%)" % [
-			false_positives, eval_flagged_total, fp_rate,
-			false_negatives, eval_skipped_total, fn_rate
-		]
-	hud_label.text = "Sprites: %d  |  Quadtree pairs: %d  |  AABB hits: %d  |  Pixel checks: %d  |  Model skips: %d%s%s" % [
-		n, broad_checks, aabb_checks, narrow_checks, model_skips,
-		"" if collision_model.is_ready() else "  (model off)",
-		eval_text
-	]
 	queue_redraw()
 
 
 func _input(event: InputEvent) -> void:
 	if event.is_action_pressed("help"):
 		help_overlay.visible = not help_overlay.visible
-		get_viewport().set_input_as_handled()
-		return
-	if event.is_action_pressed("show stats"):
-		hud_label.visible = not hud_label.visible
 		get_viewport().set_input_as_handled()
 		return
 	if event.is_action_pressed("show bounding boxes"):

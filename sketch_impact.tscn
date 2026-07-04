@@ -6,6 +6,7 @@
 [node name="Node2D" type="Node2D" unique_id=927373228]
 
 [node name="BilliardTable" parent="." unique_id=787814886 instance=ExtResource("2_table")]
+position = Vector2(15, 15)
 
 [node name="DrawWindow" parent="." unique_id=1559079329 instance=ExtResource("1_8ihcw")]
 position = Vector2(850, 0)

@@ -13,24 +13,18 @@ color = Color(0.11, 0.36, 0.17, 1)
 
 [node name="Sprites" type="Node2D" parent="." unique_id=2078563124]
 
-[node name="HUD" type="Label" parent="." unique_id=1850546111]
-offset_left = 5.0
-offset_top = 598.0
-offset_right = 815.0
-offset_bottom = 618.0
-
 [node name="HelpOverlay" type="Panel" parent="." unique_id=1234567890]
 offset_left = 260.0
 offset_top = 185.0
 offset_right = 560.0
-offset_bottom = 467.0
+offset_bottom = 489.0
 
 [node name="RichTextLabel" type="RichTextLabel" parent="HelpOverlay" unique_id=26202272]
 layout_mode = 0
 offset_left = 12.0
 offset_top = 12.0
 offset_right = 288.0
-offset_bottom = 270.0
+offset_bottom = 292.0
 text = "Key	Reference
 H		Help (toggle)
 X		Delete sprite
