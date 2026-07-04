@@ -37,10 +37,9 @@ MODEL_PATH = Path(__file__).resolve().parent.parent / "dataset" / "model.onnx"
 # Operating point picked via dataset/eval.py: threshold at ~99.9% recall on the
 # validation set, i.e. only skip the exact pixel check when the model is
 # confident enough that fewer than 0.1% of true collisions are missed.
-# NOTE: this is from the epoch-3 checkpoint trained on the fixed labels
-# (collision_label_grid fftshift fix) — re-run eval.py and update this once
-# the full training run on Colab finishes.
-DEFAULT_THRESHOLD = -6.455
+# From the epoch-39 checkpoint (final Colab run, val_loss=0.1420), trained on
+# the fixed labels (collision_label_grid fftshift fix).
+DEFAULT_THRESHOLD = -6.880
 
 _xs = np.linspace(0, 1, SPRITE_SIZE, dtype=np.float32)
 _ys = np.linspace(0, 1, SPRITE_SIZE, dtype=np.float32)

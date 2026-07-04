@@ -25,7 +25,7 @@ signal scenario_loaded(images: Array[Image])
 var broad_checks := 0   # unique pairs returned by quadtree
 var aabb_checks := 0    # pairs that passed AABB overlap test
 var narrow_checks := 0  # pairs that reached pixel-perfect check
-var model_skips := 0    # pairs the CNN filter skipped without a pixel check
+var model_skips := 0    # pairs the CNN filter predicted "no collision" for (see STUCK_OVERRIDE_FRAMES: a few of these still get a forced pixel check)
 
 # Eval mode also runs the ground-truth pixel check on pairs the model skipped,
 # so it can tell false skips from true ones. This cancels the CNN's speed-up
@@ -35,6 +35,13 @@ var false_positives := 0  # model flagged the pair, pixel check found no collisi
 var false_negatives := 0  # model skipped the pair, but a collision was actually there
 var eval_flagged_total := 0  # pairs the model flagged, seen while eval mode was on
 var eval_skipped_total := 0  # pairs the model skipped, seen while eval mode was on
+
+# How many consecutive frames the model has skipped each still-AABB-overlapping
+# pair. If a model false negative persists past STUCK_OVERRIDE_FRAMES, we force
+# a real pixel check regardless of the model's answer — otherwise two sprites
+# the model keeps misjudging as "not colliding" can stay interpenetrated forever.
+const STUCK_OVERRIDE_FRAMES := 5
+var _skip_streak: Dictionary = {}
 
 var _collision_model_scene := preload("res://collision_model.gd")
 var collision_model: Node
@@ -141,8 +148,10 @@ func _load_sprites_from_data(data: Dictionary) -> Array[Image]:
 
 func _load_images_from_data(data: Dictionary) -> Array[Image]:
 	var loaded_images: Array[Image] = []
-	for image_path in data.get("images", []):
-		if (image_path as String).is_empty() or not FileAccess.file_exists(image_path):
+	for entry in data.get("images", []):
+		var image_path: String = (entry.get("file", "") if entry is Dictionary else entry) as String
+		var spawn_count: int = int(entry.get("count", 0)) if entry is Dictionary else 0
+		if image_path.is_empty() or not FileAccess.file_exists(image_path):
 			continue
 		var img := Image.load_from_file(image_path)
 		if img == null:
@@ -150,6 +159,8 @@ func _load_images_from_data(data: Dictionary) -> Array[Image]:
 		if img.get_width() != SPRITE_PIXEL_SIZE or img.get_height() != SPRITE_PIXEL_SIZE:
 			img.resize(SPRITE_PIXEL_SIZE, SPRITE_PIXEL_SIZE, Image.INTERPOLATE_NEAREST)
 		loaded_images.append(img)
+		for i in range(spawn_count):
+			spawn_sprite(img.duplicate())
 	return loaded_images
 
 
@@ -207,17 +218,24 @@ func _physics_process(delta: float) -> void:
 			queries.append([i, j, dx, dy])
 		var maybe: Array = collision_model.query_pairs(queries)
 
+		var next_skip_streak: Dictionary = {}
 		for k in range(candidates.size()):
 			var predicted_collision: bool = maybe[k]
-			if not predicted_collision:
-				model_skips += 1
-				if not eval_mode:
-					continue
-
 			var i: int = candidates[k][0]
 			var j: int = candidates[k][1]
-			if predicted_collision:
-				narrow_checks += 1
+			var key := [i, j]
+
+			if not predicted_collision:
+				model_skips += 1
+				var streak: int = int(_skip_streak.get(key, 0)) + 1
+				next_skip_streak[key] = streak
+				if streak < STUCK_OVERRIDE_FRAMES and not eval_mode:
+					continue
+				# Streak exceeded — force the real check below even though
+				# the model said "no collision", so a persistent false
+				# negative can't leave this pair stuck interpenetrating.
+
+			narrow_checks += 1
 			var col_pt := _pixel_collision(i, j)
 			var actual_collision := col_pt.is_finite()
 
@@ -231,8 +249,9 @@ func _physics_process(delta: float) -> void:
 					if actual_collision:
 						false_negatives += 1
 
-			if predicted_collision and actual_collision:
+			if actual_collision:
 				_resolve(i, j, col_pt)
+		_skip_streak = next_skip_streak
 
 
 	for i in range(n):

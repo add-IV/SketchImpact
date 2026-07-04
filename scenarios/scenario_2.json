@@ -1,0 +1,15 @@
+{
+	"version": 1,
+	"display_scale": 2,
+	"sprites": [],
+	"images": [
+		{ "file": "res://sprites/goblin.png", "count": 10 },
+		{ "file": "res://sprites/kobold.png", "count": 10 },
+		{ "file": "res://sprites/human.png", "count": 10 },
+		{ "file": "res://sprites/elf.png", "count": 10 },
+		{ "file": "res://sprites/dragon.png", "count": 10 },
+		{ "file": "res://sprites/jelly.png", "count": 10 },
+		{ "file": "res://sprites/minotaur.png", "count": 10 },
+		{ "file": "res://sprites/cyclops.png", "count": 10 }
+	]
+}
