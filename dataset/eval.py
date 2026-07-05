@@ -9,6 +9,7 @@ from dataset_loader import CollisionDataset
 from model import CollisionCNN
 
 ROOT = Path(__file__).parent
+GAME_THRESHOLD = -6.880  # operating threshold wired into collision_model.gd
 
 
 def _curve(logits: np.ndarray, labels: np.ndarray, n_points: int = 300):
@@ -109,6 +110,30 @@ def main() -> None:
             dynamo=False,
         )
         print(f"\nONNX model saved → {out}")
+
+    # --- recall-vs-skip curve figure ---
+    try:
+        import matplotlib
+        matplotlib.use("Agg")
+        import matplotlib.pyplot as plt
+    except ImportError:
+        print("\nmatplotlib not installed — skipping curve figure "
+              "(run with `uv run --with matplotlib eval.py`)")
+    else:
+        game_idx = int(np.argmin(np.abs(thresholds - GAME_THRESHOLD)))
+        fig, ax = plt.subplots(figsize=(6, 4))
+        ax.plot(fracs_skipped, recalls, label="recall vs. fraction skipped")
+        ax.scatter([fracs_skipped[game_idx]], [recalls[game_idx]], color="red", zorder=5,
+                   label=f"game threshold ({GAME_THRESHOLD:.3f})")
+        ax.set_xlabel("Fraction of pairs skipped")
+        ax.set_ylabel("Recall")
+        ax.set_title("Recall vs. fraction skipped (validation set)")
+        ax.legend()
+        ax.grid(alpha=0.3)
+        fig.tight_layout()
+        out_path = ROOT.parent / "documentation" / "eval_curve.png"
+        fig.savefig(out_path, dpi=150)
+        print(f"Curve figure saved -> {out_path}")
 
 
 if __name__ == "__main__":

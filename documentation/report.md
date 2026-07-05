@@ -19,6 +19,7 @@ date: 2026-07-04
 6. [Integration into the Game](#sec6)
 7. [Evaluation](#sec7)
 8. [Conclusion](#sec8)
+9. [AI usage](#sec9)
 
 ## 1. Problem Statement {#sec1}
 
@@ -69,7 +70,7 @@ The root scene, `sketch_impact.tscn`, is a `Node2D` with two children. The first
 
 ### From drawing to simulation
 
-Players paint directly onto a 32x32 `Image` (`texture_rect.gd::paint_at_mouse`), setting individual pixels to the currently selected color on click and drag. Pressing **Save** (`save_image.gd::_on_down_pressed`) duplicates that image into a eight-slot history strip, writes it to `user://sprites/sprite_NNNN.png`, and clears the canvas for the next sketch. Pressing **Spawn** hands the selected image (or the canvas, if nothing is selected) to `billiard_table.spawn_sprite()`, which rejects images that are fully transparent, extracts the alpha channel into a flat byte array, and places the sprite at a random position with a random velocity, biased so its tight bounding box starts fully inside the table.
+Players paint directly onto a 32x32 `Image` (`texture_rect.gd::paint_at_mouse`), setting individual pixels to the currently selected color on click and drag. Pressing **Save** (`save_image.gd::_on_down_pressed`) duplicates that image into an eight-slot history strip, writes it to `user://sprites/sprite_NNNN.png`, and clears the canvas for the next sketch. Pressing **Spawn** hands the selected image (or the canvas, if nothing is selected) to `billiard_table.spawn_sprite()`, which rejects images that are fully transparent, extracts the alpha channel into a flat byte array, and places the sprite at a random position with a random velocity, biased so its tight bounding box starts fully inside the table.
 
 ### Sprite representation
 
@@ -93,7 +94,7 @@ Training a CNN requires far more labelled `(sprite_i, sprite_j, dx, dy, collided
 
 ### Sprite corpus
 
-213 real sprites were selected from an open source dataset [6](#src6). Additionally 500 synthetic 32×32 alpha masks  were created split evenly across four generators: organic blobs grown by random-walk expansion, random convex polygons, simple primitives (circle, rectangle, cross, L-shape), and thresholded smoothed noise.
+213 real sprites were selected from an open source dataset [[6]](#src6). Additionally, 500 synthetic 32×32 alpha masks were created, split evenly across four generators: organic blobs grown by random-walk expansion, random convex polygons, simple primitives (circle, rectangle, cross, L-shape), and thresholded smoothed noise.
 
 ### Sampling
 
@@ -147,11 +148,62 @@ In `billiard_table.gd::_physics_process`, after the AABB stage produces its cand
 
 ## 7. Evaluation {#sec7}
 
+We evaluate the model along two axes: offline, against the held-out validation split used during training, and live, inside the running game, where the pair distribution is whatever a real session of play actually produces rather than a random sample.
 
+### 7.1 Offline validation
+
+`dataset/eval.py` loads `model_best.pt`, runs it over the validation split (269,079 pairs, 25.6% positive), and sweeps the decision threshold to trace recall, precision, and fraction-of-pairs-skipped as functions of the threshold. The operating threshold used in the game, `-6.880` [(Section 6)](#sec6), was chosen as the highest threshold that still reaches at least 99.9% recall on this validation curve, per the high-recall requirement argued for in [Section 2](#sec2): a missed collision is a visible simulation bug, while a missed skip only costs one extra pixel-perfect check.
+
+| Target recall | Threshold | Actual recall | Precision | Skipped |
+|---|---|---|---|---|
+| 99.9% | -6.880 | 0.9991 | 0.3325 | 23.2% |
+| 99.5% | -4.774 | 0.9952 | 0.4415 | 42.4% |
+| 99.0% | -4.071 | 0.9910 | 0.5012 | 49.5% |
+| 98.0% | -3.369 | 0.9825 | 0.5772 | 56.5% |
+| 95.0% | -2.246 | 0.9530 | 0.7258 | 66.5% |
+| 90.0% | -1.263 | 0.9070 | 0.8503 | 72.7% |
+
+![recall vs. fraction skipped](eval_curve.png)
+
+At the game's operating threshold (confusion matrix over the 269,079-pair validation set): TP = 68,687, FP = 137,917, FN = 63, TN = 62,412 — 62,475 of 269,079 checks (23.2%) skipped, at 99.91% recall and 33.25% precision. The precision is deliberately low: the curve above shows precision only breaks 50% once recall is allowed to drop to ~99%, confirming that pushing for near-perfect recall on this task means accepting that most flagged pairs turn out not to collide, which is the correct tradeoff given a false negative is a visible bug and a false positive is one extra pixel check.
+
+### 7.2 In-game evaluation
+
+Offline validation pairs are drawn uniformly at random from the sprite corpus, but actual gameplay produces a very different, non-uniform distribution of offsets and sprite combinations — closely packed clusters, repeated sprite types, and offsets biased by physical motion rather than sampled independently. To check whether the offline operating point still holds under this shift, `billiard_table.gd` supports an *eval mode* (toggled at runtime): every AABB candidate still receives the exact pixel-perfect check regardless of what the model predicts, and the model's `maybe` flag is compared against that ground truth live, accumulating false positives (flagged as "maybe colliding" but no actual collision) and false negatives (skipped, but a real collision was missed) [(Section 6)](#sec6).
+
+We ran scenario 2 (`scenarios/scenario_2.json`, 80 sprites drawn from the real sprite corpus) in eval mode and read the following totals off the HUD:
+
+![in-game eval mode HUD](results.png)
+
+| Metric                      | Value                   |
+| --------------------------- | ----------------------- |
+| Flagged ("maybe colliding") | 37,641                  |
+| — of which false positives  | 27,471 (73.0%)          |
+| Skipped                     | 17,540                  |
+| — of which false negatives  | 117 (0.7%)              |
+| Skip rate                   | 17,540 / 55,181 (31.8%) |
+
+From these, true positives = 37,641 - 27,471 = 10,170, total real collisions = 10,170 + 117 = 10,287, giving a **live recall of 98.86%** and a **live precision of 27.0%** on flagged pairs.
+
+The low precision is expected and by design — the threshold was picked purely for recall, so most flagged pairs still resolve to "no collision" once pixel-checked, and every one of them is only an extra check, not a correctness issue. The more notable result is the recall gap: 98.86% live versus the 99.9% target measured offline. This is a genuine distribution-shift effect rather than a bug — scenario 2's tightly packed, sprite-repeating layout produces offset/pair combinations the offline random sampling under-represents — and it is the honest number to report rather than the offline figure alone.
+
+We focus this evaluation on correctness (recall/precision) rather than raw throughput, since the number of pixel checks skipped is a direct, deterministic function of the recall/precision tradeoff already characterized above — the accuracy curve is the result that matters for judging whether the filter is safe to use, not a separate wall-clock benchmark.
+
+### 7.3 Honest baseline: a lookup table would win on engineering merits
+
+It is worth being explicit that a precomputed lookup table would outperform the CNN on every engineering axis that matters for this game. Built per sprite pair at spawn time — the same FFT cross-correlation already used to generate ground-truth labels in Section 4, run once over all offsets and cached — it gives an exact, O(1) lookup for every subsequent frame the pair exists, with no training pipeline and no Python subprocess or IPC protocol to integrate with Godot. Unlike a table over a fixed, bounded sprite corpus, this per-pair construction works for arbitrary freeform sprites just as well as the CNN does, so it is not a fallback that only works because the sprite set is limited. The CNN is included here because a learned filter over exact collision detection is the assigned academic contribution of this project, not because it is the better engineering choice. Section 7.2's recall gap is itself a consequence of this tradeoff: a lookup table has no such gap, because it has no distribution to shift under.
 
 ## 8. Conclusion {#sec8}
 
+SketchImpact demonstrates the full pipeline this project set out to build: a self-contained 2D billiard game with quadtree and AABB broad-phase and pixel-perfect narrow-phase collision [(Section 3)](#sec3), an offline dataset generator that reimplements the exact game rule as ground truth [(Section 4)](#sec4), a small CoordConv-style CNN trained to predict collision likelihood from two alpha masks and their offset [(Section 5)](#sec5), and a fail-open runtime integration that gates the narrow-phase check behind the model's prediction without ever silently dropping a collision [(Section 6)](#sec6).
 
+The approach works as intended in the sense that matters most for a game: because the operating threshold is tuned for recall rather than accuracy, and the integration fails open whenever the model is unavailable, the simulation never becomes visibly wrong as a result of adding the CNN — it only does more or less extra work. At the same time, the live evaluation in Section 7.2 shows this guarantee is closer to "very high recall" than "no missed collisions": at 98.86% live recall, a session of real play will occasionally miss a collision the offline validation curve promised would be caught, because gameplay pair distributions are not the offline validation distribution. The 31.8% skip rate measured in the same run is a real but modest saving relative to the pre-CNN baseline, and — as argued in Section 7.3 — a per-pair lookup table built from the same exact FFT correlation used for dataset labeling would deliver a strictly better result (skip rate 100%, recall 100%, no training or IPC); the CNN's value here is what it demonstrates about learning collision geometry from raw masks, not a practical performance win over the alternative.
+
+Future work would prioritize closing the offline/live recall gap identified in Section 7.2, most directly by generating training pairs that better match actual gameplay distributions (clustered positions, repeated sprites) rather than uniform random sampling, and by extending the in-game eval-mode harness into an automated regression check that can be re-run whenever the model or dataset changes. A second direction would be to turn Section 7.3's engineering argument from an assertion into a measurement: build the per-pair lookup table with the same FFT cross-correlation already used for ground-truth labeling in Section 4, and compare its one-time build cost (paid once per spawned sprite pair, then reused every frame via O(1) lookups) against the CNN's fixed per-frame inference cost. The CNN only wins that comparison if sprite pairs churn faster than their tables can be amortized; this evaluation did not measure where that crossover point is, or whether it occurs within the range of sprite counts this game actually produces.
+
+## 9. AI usage {#sec9}
+
+The initial game was developed without AI. The NN model and later tweaks to the game were developed via Claude AI. The report was first written without AI, then corrected via Grammarly, and lastly enhanced via Claude Code.
 
 ## Sources
 

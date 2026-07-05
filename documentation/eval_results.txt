@@ -1,0 +1,27 @@
+Downloading fonttools (2.2MiB)
+Downloading matplotlib (8.9MiB)
+ Downloaded fonttools
+ Downloaded matplotlib
+Installed 11 packages in 541ms
+Checkpoint: epoch 39, val_loss=0.1420
+Val set: 269,079 samples, 68,750 positive (25.6%)
+
+ Target recall  Threshold  Actual recall  Precision  Skipped
+--------------------------------------------------------------
+         99.9%     -6.880         0.9991     0.3325    0.232
+         99.5%     -4.774         0.9952     0.4415    0.424
+         99.0%     -4.071         0.9910     0.5012    0.495
+         98.0%     -3.369         0.9825     0.5772    0.565
+         95.0%     -2.246         0.9530     0.7258    0.665
+         90.0%     -1.263         0.9070     0.8503    0.727
+
+Baselines (reference):
+  Always-predict-collision : recall=1.000  precision=0.256  skipped=0.000
+  Never-predict-collision  : recall=0.000  skipped=1.000
+  Exact numpy check        : recall=1.000  precision=1.000  skipped=0.000  (no CNN needed in Python)
+
+Confusion matrix at 99.9% recall (threshold=-6.880):
+  TP=  68,687  FP= 137,917
+  FN=      63  TN=  62,412
+  Checks skipped: 62,475 / 269,079 (23.2%)
+Curve figure saved -> C:\Users\add-iv\Documents\uni\ss2026\cg\SketchImpact\documentation\eval_curve.png
