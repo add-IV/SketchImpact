@@ -96,6 +96,25 @@ func _do_spawn(image: Image, px: PackedByteArray, offset: Rect2, pos: Vector2, v
 	collision_model.register_sprite(idx, px)
 
 
+func _remove_sprite(idx: int) -> void:
+	display_nodes[idx].queue_free()
+	var last := positions.size() - 1
+	if idx != last:
+		positions[idx] = positions[last]
+		velocities[idx] = velocities[last]
+		pixels[idx] = pixels[last]
+		display_nodes[idx] = display_nodes[last]
+		aabb_offsets[idx] = aabb_offsets[last]
+		aabbs[idx] = aabbs[last]
+		collision_model.register_sprite(idx, pixels[idx])
+	positions.pop_back()
+	velocities.pop_back()
+	pixels.pop_back()
+	display_nodes.pop_back()
+	aabb_offsets.pop_back()
+	aabbs.pop_back()
+
+
 func clear_sprites() -> void:
 	for node in display_nodes:
 		node.queue_free()
@@ -283,6 +302,14 @@ func _input(event: InputEvent) -> void:
 		@warning_ignore("integer_division")
 		_set_display_scale(_display_scale / 2)
 		get_viewport().set_input_as_handled()
+		return
+	if event.is_action_pressed("delete"):
+		var hover := get_local_mouse_position()
+		for i in range(positions.size()):
+			if aabbs[i].has_point(hover):
+				_remove_sprite(i)
+				get_viewport().set_input_as_handled()
+				break
 		return
 	if event is InputEventKey and event.pressed and not event.echo:
 		var key_event := event as InputEventKey
